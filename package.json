@@ -1,0 +1,57 @@
+{
+  "name": "iteratop",
+  "version": "0.1.0",
+  "description": "Iteration Processor for convergent loops with LLMs - Inspired by Scrum and OODA loops",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "llm",
+    "iteration",
+    "convergence",
+    "agent",
+    "research",
+    "fact-check",
+    "ooda-loop",
+    "scrum",
+    "typescript",
+    "ai",
+    "refinement",
+    "builder-pattern"
+  ],
+  "author": "Aid-On Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aid-On/iteratop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Aid-On/iteratop/issues"
+  },
+  "homepage": "https://github.com/Aid-On/iteratop#readme",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

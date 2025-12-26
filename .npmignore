@@ -1,0 +1,46 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Test files
+**/*.test.*
+**/*.spec.*
+coverage/
+.nyc_output/
+
+# Configuration
+tsconfig.json
+vitest.config.ts
+.eslintrc*
+.prettierrc*
+
+# Development
+node_modules/
+.vscode/
+.idea/
+*.log
+*.tmp
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Documentation sources
+ARTICLE.md
+docs/
+
+# Local settings
+.claude/
+.env*
+*.local
+
+# Build artifacts (except dist)
+*.tsbuildinfo
+
+# Package manager
+yarn.lock
+pnpm-lock.yaml
+package-lock.json
