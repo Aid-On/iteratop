@@ -1,6 +1,6 @@
 {
   "name": "@aid-on/iteratop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Iteration Processor for convergent loops with LLMs - Inspired by Scrum and OODA loops",
   "main": "dist/index.js",
   "module": "dist/index.js",
