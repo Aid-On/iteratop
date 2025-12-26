@@ -70,3 +70,11 @@ export {
   combineEvaluations,
   calculateScore,
 } from './utils';
+
+// Nagare streaming exports
+export { 
+  StreamingIteratoP, 
+  StreamingIteratoPBuilder,
+  createStreamingIterator,
+  type StreamingState
+} from './stream';
