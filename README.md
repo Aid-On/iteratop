@@ -36,6 +36,12 @@ yarn add @aid-on/iteratop
 pnpm add @aid-on/iteratop
 ```
 
+## What's New in v0.2.0
+
+- **Nagare Streaming Support**: Integration with [@aid-on/nagare](https://github.com/Aid-On/nagare) for real-time iteration streaming
+- **StreamingIteratoP**: Stream iteration states as they happen
+- **Full Backward Compatibility**: All existing code continues to work
+
 ## Quick Start
 
 ### Basic Usage
@@ -120,6 +126,51 @@ graph TD
 5. **Finalize** (Release) - Generate final result from converged state
 
 ## Configuration
+
+### Streaming Iterations (v0.2.0+)
+
+Stream iteration states in real-time using nagare Stream<T>:
+
+```typescript
+import { createStreamingIterator } from '@aid-on/iteratop';
+import { createActionResult, createEvaluation } from '@aid-on/iteratop';
+
+const processor = createStreamingIterator({
+  initialize: async (input) => ({ query: input, confidence: 0 }),
+  
+  act: async (state, context) => 
+    createActionResult({ 
+      data: await searchDatabase(state.query) 
+    }),
+  
+  evaluate: async (state, actionResult, context) => 
+    createEvaluation(calculateConfidence(actionResult.data), {
+      shouldContinue: state.confidence < 80,
+      feedback: 'Refining search...'
+    }),
+  
+  transition: async (state, actionResult, evaluation) => ({
+    ...state,
+    query: refineQuery(state.query, evaluation.feedback),
+    confidence: evaluation.score
+  })
+});
+
+// Stream all iteration states
+const stream = await processor.executeStream("LLM optimization techniques");
+for await (const state of stream) {
+  console.log(`Iteration ${state.iteration}: ${state.converged ? 'Converged!' : 'Processing...'}`);
+  if (state.evaluation) {
+    console.log(`  Score: ${state.evaluation.score}`);
+  }
+}
+
+// Or stream just evaluations
+const evaluations = await processor.evaluationStream("LLM optimization");
+for await (const evaluation of evaluations) {
+  console.log(`Score: ${evaluation.score} - ${evaluation.feedback}`);
+}
+```
 
 ### Available Presets
 

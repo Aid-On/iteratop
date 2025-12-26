@@ -36,6 +36,12 @@ yarn add @aid-on/iteratop
 pnpm add @aid-on/iteratop
 ```
 
+## v0.2.0の新機能
+
+- **Nagareストリーミングサポート**: [@aid-on/nagare](https://github.com/Aid-On/nagare)との統合によるリアルタイムイテレーションストリーミング
+- **StreamingIteratoP**: イテレーション状態をリアルタイムでストリーム配信
+- **完全な後方互換性**: 既存のコードはすべてそのまま動作
+
 ## クイックスタート
 
 ### 基本的な使い方
@@ -120,6 +126,51 @@ graph TD
 5. **Finalize** (リリース) - 収束した状態から最終結果を生成
 
 ## 設定
+
+### ストリーミングイテレーション (v0.2.0以降)
+
+nagare Stream<T>を使用してイテレーション状態をリアルタイムでストリーム配信：
+
+```typescript
+import { createStreamingIterator } from '@aid-on/iteratop';
+import { createActionResult, createEvaluation } from '@aid-on/iteratop';
+
+const processor = createStreamingIterator({
+  initialize: async (input) => ({ query: input, confidence: 0 }),
+  
+  act: async (state, context) => 
+    createActionResult({ 
+      data: await searchDatabase(state.query) 
+    }),
+  
+  evaluate: async (state, actionResult, context) => 
+    createEvaluation(calculateConfidence(actionResult.data), {
+      shouldContinue: state.confidence < 80,
+      feedback: 'クエリを改善中...'
+    }),
+  
+  transition: async (state, actionResult, evaluation) => ({
+    ...state,
+    query: refineQuery(state.query, evaluation.feedback),
+    confidence: evaluation.score
+  })
+});
+
+// すべてのイテレーション状態をストリーム
+const stream = await processor.executeStream("LLM最適化手法");
+for await (const state of stream) {
+  console.log(`イテレーション ${state.iteration}: ${state.converged ? '収束！' : '処理中...'}`);
+  if (state.evaluation) {
+    console.log(`  スコア: ${state.evaluation.score}`);
+  }
+}
+
+// 評価のみをストリーム
+const evaluations = await processor.evaluationStream("LLM最適化");
+for await (const evaluation of evaluations) {
+  console.log(`スコア: ${evaluation.score} - ${evaluation.feedback}`);
+}
+```
 
 ### 利用可能なプリセット
 
