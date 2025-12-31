@@ -2,7 +2,7 @@
  * IteratoP - Utility Functions
  */
 
-import type { Evaluation, ActionResult, IterationHistory } from './types';
+import type { Evaluation, ActionResult, IterationHistory } from './types.js';
 
 /**
  * Create a simple evaluation result

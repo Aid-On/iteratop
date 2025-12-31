@@ -2,7 +2,7 @@
  * IteratoP - Builder Pattern for Flexible Configuration
  */
 
-import { IterationProcessor, createIterator } from './core';
+import { IterationProcessor, createIterator } from './core.js';
 import type {
   IterationOptions,
   IterationConfig,
@@ -11,7 +11,7 @@ import type {
   IterationContext,
   IterationHistory,
   IterationEventListener,
-} from './types';
+} from './types.js';
 
 /**
  * Default preset configurations for common use cases

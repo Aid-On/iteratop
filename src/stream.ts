@@ -1,6 +1,6 @@
 import type { Stream } from '@aid-on/nagare';
 import { fromArray } from '@aid-on/nagare';
-import { createIterator } from './core';
+import { createIterator } from './core.js';
 import type {
   IterationConfig,
   IterationContext,
@@ -9,7 +9,7 @@ import type {
   Evaluation,
   IterationResult,
   IterationOptions,
-} from './types';
+} from './types.js';
 
 /**
  * Streaming iteration state for nagare

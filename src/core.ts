@@ -23,7 +23,7 @@ import type {
   IterationEvent,
   IterationEventListener,
   Evaluation,
-} from './types';
+} from './types.js';
 
 export class IterationProcessor<Input, State, ActionData, Result> {
   private config: ResolvedConfig;

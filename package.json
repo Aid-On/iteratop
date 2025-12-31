@@ -1,10 +1,19 @@
 {
   "name": "@aid-on/iteratop",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Iteration Processor for convergent loops with LLMs - Inspired by Scrum and OODA loops",
+  "type": "module",
   "main": "dist/index.js",
-  "module": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md",
@@ -12,7 +21,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
+    "build:tsc": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -45,12 +55,13 @@
   "homepage": "https://github.com/Aid-On/iteratop#readme",
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
     "vitest": "^2.0.0"
   },
   "dependencies": {
-    "@aid-on/nagare": "^0.1.0"
+    "@aid-on/nagare": "^0.2.0"
   },
   "engines": {
     "node": ">=16.0.0"

@@ -50,7 +50,7 @@ export type {
   IterationOptions,
   IterationEvent,
   IterationEventListener,
-} from './types';
+} from './types.js';
 
 // Utilities
 export {
@@ -69,7 +69,7 @@ export {
   withTimeout,
   combineEvaluations,
   calculateScore,
-} from './utils';
+} from './utils.js';
 
 // Nagare streaming exports
 export { 
@@ -77,4 +77,4 @@ export {
   StreamingIteratoPBuilder,
   createStreamingIterator,
   type StreamingState
-} from './stream';
+} from './stream.js';
