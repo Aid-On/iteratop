@@ -124,11 +124,14 @@ export function mergeObjectActionResults<T extends Record<string, unknown>>(
   results: ActionResult<T>[],
   mergeStrategy?: 'shallow' | 'deep' | ((objects: T[]) => T)
 ): ActionResult<T> {
-  const strategy = typeof mergeStrategy === 'function' 
-    ? mergeStrategy
-    : mergeStrategy === 'deep'
-    ? (objects: T[]) => deepMerge<T>(...objects)
-    : (objects: T[]) => Object.assign({}, ...objects) as T;
+  let strategy: (objects: T[]) => T;
+  if (typeof mergeStrategy === 'function') {
+    strategy = mergeStrategy;
+  } else if (mergeStrategy === 'deep') {
+    strategy = (objects: T[]) => deepMerge<T>(...objects);
+  } else {
+    strategy = (objects: T[]) => Object.assign({}, ...objects) as T;
+  }
 
   return mergeActionResults(results, strategy);
 }

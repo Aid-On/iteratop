@@ -411,33 +411,24 @@ describe('IterationProcessor', () => {
       )).toBe(true);
     });
 
-    it('should use console.log when logger.log is not provided', async () => {
+    it('should silently skip logging when logger.log is not provided', async () => {
       const errorLogs: string[] = [];
-      const originalConsoleLog = console.log;
-      const consoleLogs: any[] = [];
-      console.log = (...args: any[]) => consoleLogs.push(args);
 
       const processor = createIterator(createMockOptions(), {
         maxIterations: 1,
         verbose: true,
         logger: {
           error: (message, error) => errorLogs.push(`${message}: ${error}`),
-          // log is not provided, should fall back to console.log
+          // log is not provided, should silently skip
         },
       });
 
-      await processor.run(1);
-      console.log = originalConsoleLog;
-
-      expect(consoleLogs.length).toBeGreaterThan(0);
-      expect(consoleLogs.some(args => args[0]?.includes('[IteratoP]'))).toBe(true);
+      // Should not throw even though verbose is true and logger.log is missing
+      const result = await processor.run(1);
+      expect(result.iterations).toBe(1);
     });
 
-    it('should use console.error when logger.error is not provided', async () => {
-      const originalConsoleError = console.error;
-      const consoleErrors: any[] = [];
-      console.error = (...args: any[]) => consoleErrors.push(args);
-
+    it('should silently skip error logging when logger is not provided', async () => {
       const processor = createIterator(createMockOptions(), {
         maxIterations: 1,
         // No logger provided
@@ -447,13 +438,9 @@ describe('IterationProcessor', () => {
         throw new Error('Test error');
       });
 
-      await processor.run(1);
-      console.error = originalConsoleError;
-
-      expect(consoleErrors.length).toBeGreaterThan(0);
-      expect(consoleErrors.some(args => 
-        args[0]?.includes('[IteratoP] Event listener error')
-      )).toBe(true);
+      // Should not throw even though listener throws and no logger is configured
+      const result = await processor.run(1);
+      expect(result.iterations).toBe(1);
     });
   });
 

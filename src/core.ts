@@ -24,6 +24,7 @@ import type {
   IterationEventListener,
   Evaluation,
 } from './types.js';
+import { runSingleIteration, buildResult, buildErrorResult } from './core-helpers.js';
 
 export class IterationProcessor<Input, State, ActionData, Result> {
   private config: ResolvedConfig;
@@ -33,16 +34,15 @@ export class IterationProcessor<Input, State, ActionData, Result> {
     private options: IterationOptions<Input, State, ActionData, Result>,
     config: IterationConfig = {}
   ) {
-    // Validate config
     const maxIterations = config.maxIterations ?? 5;
     const minIterations = config.minIterations ?? 1;
-    
+
     if (minIterations > maxIterations) {
       throw new Error(
         `Invalid configuration: minIterations (${minIterations}) cannot be greater than maxIterations (${maxIterations})`
       );
     }
-    
+
     this.config = {
       maxIterations,
       targetScore: config.targetScore ?? 70,
@@ -74,12 +74,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
       try {
         listener(event);
       } catch (e) {
-        const logger = this.config.logger;
-        if (logger?.error) {
-          logger.error('[IteratoP] Event listener error:', e);
-        } else {
-          console.error('[IteratoP] Event listener error:', e);
-        }
+        this.config.logger?.error('[IteratoP] Event listener error:', e);
       }
     }
   }
@@ -89,12 +84,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
    */
   private log(message: string, ...args: unknown[]): void {
     if (this.config.verbose) {
-      const logger = this.config.logger;
-      if (logger?.log) {
-        logger.log(`[IteratoP] ${message}`, ...args);
-      } else {
-        console.log(`[IteratoP] ${message}`, ...args);
-      }
+      this.config.logger?.log?.(`[IteratoP] ${message}`, ...args);
     }
   }
 
@@ -105,103 +95,56 @@ export class IterationProcessor<Input, State, ActionData, Result> {
     const startTime = Date.now();
     const history: IterationHistory<ActionData>[] = [];
     let state: State | undefined;
-    let finalEvaluation: Evaluation = {
-      score: 0,
-      shouldContinue: true,
-      feedback: '',
-    };
-    let terminationReason: IterationResult<Result, ActionData>['terminationReason'] =
-      'max_iterations';
+    let finalEvaluation: Evaluation = { score: 0, shouldContinue: true, feedback: '' };
+    let terminationReason: IterationResult<Result, ActionData>['terminationReason'] = 'max_iterations';
 
     this.emit({ type: 'start', input });
     this.log('Starting iteration loop', { maxIterations: this.config.maxIterations });
 
     try {
-      // 1. Initialize (Sprint Planning)
-      state = await this.options.initialize(input);
+      let currentState: State = await this.options.initialize(input);
+      state = currentState;
       this.log('Initialized state');
 
-      // 2. Loop
       for (let i = 0; i < this.config.maxIterations; i++) {
-        const iterationStart = Date.now();
-
-        // Check timeout
         if (this.config.timeout && Date.now() - startTime > this.config.timeout) {
           this.log('Timeout reached');
           terminationReason = 'timeout';
           break;
         }
 
-        const context: IterationContext = {
-          iteration: i,
-          maxIterations: this.config.maxIterations,
-          elapsedTime: Date.now() - startTime,
-          previousEvaluation: i > 0 ? finalEvaluation : undefined,
-        };
+        const iterResult = await runSingleIteration<Input, State, ActionData, Result>({
+          index: i,
+          state: currentState,
+          startTime,
+          config: this.config,
+          options: this.options,
+          history,
+          previousEvaluation: finalEvaluation,
+          emit: (event) => this.emit(event),
+          log: (msg, ...a) => this.log(msg, ...a),
+          checkTermination: (s, e, c, it) => this.checkTermination(s, e, c, it),
+        });
 
-        this.emit({ type: 'iteration_start', iteration: i });
-        this.log(`Iteration ${i + 1}/${this.config.maxIterations} started`);
+        currentState = iterResult.state;
+        state = currentState;
+        finalEvaluation = iterResult.evaluation;
 
-        // 2a. Act (Sprint Execution)
-        const actionResult = await this.options.act(state, context);
-        this.emit({ type: 'action_complete', iteration: i, result: actionResult });
-        this.log(`Action complete`, { dataSize: JSON.stringify(actionResult.data).length });
-
-        // 2b. Evaluate (Sprint Review)
-        const evaluation = await this.options.evaluate(state, actionResult, context);
-        finalEvaluation = evaluation;
-        this.emit({ type: 'evaluation_complete', iteration: i, evaluation });
-        this.log(`Evaluation complete`, { score: evaluation.score, shouldContinue: evaluation.shouldContinue });
-
-        // Record history
-        const iterationHistory: IterationHistory<ActionData> = {
-          iteration: i,
-          actionResult,
-          evaluation,
-          timestamp: Date.now(),
-          duration: Date.now() - iterationStart,
-        };
-        history.push(iterationHistory);
-        this.emit({ type: 'iteration_complete', iteration: i, history: iterationHistory });
-
-        // 2c. Transition (Retrospective -> next Sprint Planning)
-        // Run transition if not the last iteration OR if alwaysRunTransition is true
-        const isLastIteration = i === this.config.maxIterations - 1;
-        const shouldTerminate = this.checkTermination(state, evaluation, context, i);
-        const shouldRunTransition = (!isLastIteration || this.config.alwaysRunTransition) && !shouldTerminate.terminate;
-        
-        if (shouldRunTransition || (this.config.alwaysRunTransition && shouldTerminate.terminate)) {
-          state = await this.options.transition(state, actionResult, evaluation, context);
-          this.emit({ type: 'transition_complete', iteration: i, state });
-          this.log(`Transition complete, preparing next iteration`);
-        }
-
-        // Check termination conditions
-        if (shouldTerminate.terminate) {
-          terminationReason = shouldTerminate.reason;
-          this.log(`Terminating: ${terminationReason}`, { score: evaluation.score });
-          this.emit({ type: 'converged', iteration: i, score: evaluation.score });
+        if (iterResult.terminationReason !== null) {
+          terminationReason = iterResult.terminationReason;
           break;
         }
       }
 
-      // 3. Finalize (Release)
-      const result = await this.options.finalize(state, history);
-      const totalCost = history.reduce(
-        (sum, h) => sum + (h.actionResult.metadata?.cost ?? 0),
-        0
-      );
-
-      const iterationResult: IterationResult<Result, ActionData> = {
+      const result = await this.options.finalize(currentState, history);
+      const iterationResult = buildResult<Result, ActionData>({
         result,
-        iterations: history.length,
-        finalScore: finalEvaluation.score,
-        converged: finalEvaluation.score >= this.config.targetScore,
-        terminationReason,
-        totalCost,
-        totalLatency: Date.now() - startTime,
         history,
-      };
+        finalEvaluation,
+        terminationReason,
+        targetScore: this.config.targetScore,
+        startTime,
+      });
 
       this.emit({ type: 'complete', result: iterationResult });
       this.log('Loop complete', {
@@ -217,7 +160,6 @@ export class IterationProcessor<Input, State, ActionData, Result> {
       this.emit({ type: 'error', error: err, iteration: history.length, state });
       this.log('Error occurred', { error: err.message });
 
-      // Try error handler if provided
       if (this.options.onError) {
         const context: IterationContext = {
           iteration: history.length,
@@ -226,16 +168,12 @@ export class IterationProcessor<Input, State, ActionData, Result> {
           previousEvaluation: finalEvaluation,
         };
         const fallbackResult = await this.options.onError(err, state, context);
-        return {
+        return buildErrorResult<Result, ActionData>({
           result: fallbackResult,
-          iterations: history.length,
-          finalScore: finalEvaluation.score,
-          converged: false,
-          terminationReason: 'manual_stop',
-          totalCost: history.reduce((sum, h) => sum + (h.actionResult.metadata?.cost ?? 0), 0),
-          totalLatency: Date.now() - startTime,
           history,
-        };
+          finalEvaluation,
+          startTime,
+        });
       }
 
       throw error;
@@ -251,67 +189,50 @@ export class IterationProcessor<Input, State, ActionData, Result> {
     context: IterationContext,
     iteration: number
   ): { terminate: boolean; reason: IterationResult<Result, ActionData>['terminationReason'] } {
-    // Custom termination check
     if (this.options.shouldTerminate?.(state, evaluation, context)) {
       return { terminate: true, reason: 'manual_stop' };
     }
-
-    // Early stop: very high score
     if (evaluation.score >= this.config.earlyStopScore) {
       return { terminate: true, reason: 'early_stop' };
     }
-
-    // Evaluation says to stop
     if (!evaluation.shouldContinue) {
       return { terminate: true, reason: 'converged' };
     }
-
-    // Target reached after minimum iterations (or skipMinIterations is enabled)
     if (evaluation.score >= this.config.targetScore) {
       const minIterationsMet = iteration >= this.config.minIterations - 1;
       if (minIterationsMet || this.config.skipMinIterations) {
         return { terminate: true, reason: 'converged' };
       }
     }
-
     return { terminate: false, reason: 'max_iterations' };
   }
 
-  /**
-   * Get current configuration
-   */
+  /** Get current configuration */
   getConfig(): ResolvedConfig {
     return { ...this.config };
   }
 
-  /**
-   * Create a new processor with updated config
-   */
+  /** Create a new processor with updated config */
   withConfig(config: Partial<IterationConfig>): IterationProcessor<Input, State, ActionData, Result> {
     return new IterationProcessor(this.options, { ...this.config, ...config });
   }
 
-  /**
-   * Update configuration dynamically (returns this for chaining)
-   */
+  /** Update configuration dynamically (returns this for chaining) */
   updateConfig(config: Partial<IterationConfig>): this {
-    // Validate if minIterations > maxIterations after update
     const newMaxIterations = config.maxIterations ?? this.config.maxIterations;
     const newMinIterations = config.minIterations ?? this.config.minIterations;
-    
+
     if (newMinIterations > newMaxIterations) {
       throw new Error(
         `Invalid configuration: minIterations (${newMinIterations}) cannot be greater than maxIterations (${newMaxIterations})`
       );
     }
-    
+
     Object.assign(this.config, config);
     return this;
   }
 
-  /**
-   * Reset configuration to defaults
-   */
+  /** Reset configuration to defaults */
   resetConfig(): this {
     this.config = {
       maxIterations: 5,

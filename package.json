@@ -1,6 +1,6 @@
 {
   "name": "@aid-on/iteratop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Iteration Processor for convergent loops with LLMs - Inspired by Scrum and OODA loops",
   "type": "module",
   "main": "dist/index.cjs",
@@ -67,6 +67,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@aid-on/nagare": "^0.2.1"
+    "@aid-on/nagare": "^0.2.2"
   }
 }

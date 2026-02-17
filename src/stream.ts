@@ -43,117 +43,113 @@ export class StreamingIteratoP<Input, State, ActionData, Result> {
   async executeStream(input: Input): Promise<Stream<StreamingState<State, ActionData>>> {
     const states: StreamingState<State, ActionData>[] = [];
     
-    try {
-      // Initialize
-      const initialState = await this.config.initialize(input);
-      let currentState = initialState;
-      let iteration = 0;
-      let converged = false;
-      const history: IterationHistory<ActionData>[] = [];
-      
-      const maxIterations = this.options?.maxIterations ?? 5;
-      const minIterations = this.options?.minIterations ?? 1;
-      const targetScore = this.options?.targetScore ?? 70;
-      const skipMinIterations = this.options?.skipMinIterations ?? false;
-      const startTime = Date.now();
-      const timeout = this.options?.timeout;
-      
-      // Emit initial state
-      const initialContext: IterationContext = {
-        iteration: 0,
-        maxIterations,
-        elapsedTime: 0,
-      };
-      
-      states.push({
-        iteration: 0,
-        state: currentState,
-        converged: false,
-        context: initialContext,
-      });
+    // Initialize
+    const initialState = await this.config.initialize(input);
+    let currentState = initialState;
+    let iteration = 0;
+    let converged = false;
+    const history: IterationHistory<ActionData>[] = [];
 
-      while (iteration < maxIterations && !converged) {
-        const iterationStartTime = Date.now();
+    const maxIterations = this.options?.maxIterations ?? 5;
+    const minIterations = this.options?.minIterations ?? 1;
+    const targetScore = this.options?.targetScore ?? 70;
+    const skipMinIterations = this.options?.skipMinIterations ?? false;
+    const startTime = Date.now();
+    const timeout = this.options?.timeout;
 
-        // Check timeout BEFORE incrementing iteration
-        if (timeout && Date.now() - startTime > timeout) {
-          const context: IterationContext = {
-            iteration: iteration + 1,
-            maxIterations,
-            elapsedTime: Date.now() - startTime,
-            previousEvaluation: history[history.length - 1]?.evaluation,
-          };
-          
-          states.push({
-            iteration: iteration + 1,
-            state: currentState,
-            converged: false,
-            timedOut: true,
-            context,
-          });
-          break;
-        }
-        
-        iteration++;
+    // Emit initial state
+    const initialContext: IterationContext = {
+      iteration: 0,
+      maxIterations,
+      elapsedTime: 0,
+    };
 
+    states.push({
+      iteration: 0,
+      state: currentState,
+      converged: false,
+      context: initialContext,
+    });
+
+    while (iteration < maxIterations && !converged) {
+      const iterationStartTime = Date.now();
+
+      // Check timeout BEFORE incrementing iteration
+      if (timeout && Date.now() - startTime > timeout) {
         const context: IterationContext = {
-          iteration,
+          iteration: iteration + 1,
           maxIterations,
           elapsedTime: Date.now() - startTime,
           previousEvaluation: history[history.length - 1]?.evaluation,
         };
 
-        // Act phase
-        const actionResult = await this.config.act(currentState, context);
-
-        // Evaluate phase
-        const evaluation = await this.config.evaluate(currentState, actionResult, context);
-
-        // Record history
-        history.push({
-          iteration,
-          actionResult,
-          evaluation,
-          timestamp: Date.now(),
-          duration: Date.now() - iterationStartTime,
-        });
-
-        // Check convergence
-        if (skipMinIterations && evaluation.score >= targetScore) {
-          converged = true;
-        } else if (evaluation.score >= targetScore && iteration >= minIterations) {
-          converged = true;
-        } else if (!evaluation.shouldContinue && iteration >= minIterations) {
-          converged = true;
-        }
-
-        // Transition phase
-        if (!converged && this.config.transition) {
-          currentState = await this.config.transition(currentState, actionResult, evaluation, context);
-        }
-
-        // Emit state after transition
         states.push({
-          iteration,
+          iteration: iteration + 1,
           state: currentState,
-          actionResult,
-          evaluation,
-          converged,
+          converged: false,
+          timedOut: true,
           context,
         });
-        
-        // If just converged, break out of loop
-        if (converged) {
-          break;
-        }
+        break;
       }
 
-      // Finalize if configured
-      if (this.config.finalize) {
-        await this.config.finalize(currentState, history);
+      iteration++;
+
+      const context: IterationContext = {
+        iteration,
+        maxIterations,
+        elapsedTime: Date.now() - startTime,
+        previousEvaluation: history[history.length - 1]?.evaluation,
+      };
+
+      // Act phase
+      const actionResult = await this.config.act(currentState, context);
+
+      // Evaluate phase
+      const evaluation = await this.config.evaluate(currentState, actionResult, context);
+
+      // Record history
+      history.push({
+        iteration,
+        actionResult,
+        evaluation,
+        timestamp: Date.now(),
+        duration: Date.now() - iterationStartTime,
+      });
+
+      // Check convergence
+      if (skipMinIterations && evaluation.score >= targetScore) {
+        converged = true;
+      } else if (evaluation.score >= targetScore && iteration >= minIterations) {
+        converged = true;
+      } else if (!evaluation.shouldContinue && iteration >= minIterations) {
+        converged = true;
       }
-    } catch (error) {
-      throw error;
+
+      // Transition phase
+      if (!converged && this.config.transition) {
+        currentState = await this.config.transition(currentState, actionResult, evaluation, context);
+      }
+
+      // Emit state after transition
+      states.push({
+        iteration,
+        state: currentState,
+        actionResult,
+        evaluation,
+        converged,
+        context,
+      });
+
+      // If just converged, break out of loop
+      if (converged) {
+        break;
+      }
+    }
+
+    // Finalize if configured
+    if (this.config.finalize) {
+      await this.config.finalize(currentState, history);
     }
     
     // Return as a nagare stream
