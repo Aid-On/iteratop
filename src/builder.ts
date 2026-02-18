@@ -15,7 +15,7 @@ import type {
 
 /**
  * Default preset configurations for common use cases
- * 
+ *
  * - `fast`: Minimal iterations, quick convergence (good for simple queries)
  * - `thorough`: More iterations, higher quality (good for complex problems)
  * - `balanced`: Default balanced approach
@@ -53,165 +53,110 @@ export const DEFAULT_PRESETS = {
   },
 } as const satisfies Record<string, IterationConfig>;
 
-/**
- * Type for preset names
- */
+/** Type for preset names */
 export type PresetName = keyof typeof DEFAULT_PRESETS;
 
-/**
- * Builder for creating IterationProcessor with fluent API
- */
+/** Builder for creating IterationProcessor with fluent API */
 export class IterationBuilder<Input, State, ActionData, Result> {
   private config: IterationConfig = {};
   private options: Partial<IterationOptions<Input, State, ActionData, Result>> = {};
   private listeners: IterationEventListener<Input, State, ActionData, Result>[] = [];
 
-  /**
-   * Set initialization function
-   */
+  /** Set initialization function */
   initialize(fn: (input: Input) => Promise<State>): this {
     this.options.initialize = fn;
     return this;
   }
 
-  /**
-   * Set action function
-   */
+  /** Set action function */
   act(fn: (state: State, context: IterationContext) => Promise<ActionResult<ActionData>>): this {
     this.options.act = fn;
     return this;
   }
 
-  /**
-   * Set evaluation function
-   */
+  /** Set evaluation function */
   evaluate(
-    fn: (
-      state: State,
-      actionResult: ActionResult<ActionData>,
-      context: IterationContext
-    ) => Promise<Evaluation>
+    fn: (state: State, actionResult: ActionResult<ActionData>, context: IterationContext) => Promise<Evaluation>
   ): this {
     this.options.evaluate = fn;
     return this;
   }
 
-  /**
-   * Set transition function
-   */
+  /** Set transition function */
   transition(
-    fn: (
-      state: State,
-      actionResult: ActionResult<ActionData>,
-      evaluation: Evaluation,
-      context: IterationContext
-    ) => Promise<State>
+    fn: (state: State, actionResult: ActionResult<ActionData>, evaluation: Evaluation, context: IterationContext) => Promise<State>
   ): this {
     this.options.transition = fn;
     return this;
   }
 
-  /**
-   * Set finalize function
-   */
-  finalize(
-    fn: (state: State, history: IterationHistory<ActionData>[]) => Promise<Result>
-  ): this {
+  /** Set finalize function */
+  finalize(fn: (state: State, history: IterationHistory<ActionData>[]) => Promise<Result>): this {
     this.options.finalize = fn;
     return this;
   }
 
-  /**
-   * Set custom termination check
-   */
-  shouldTerminate(
-    fn: (state: State, evaluation: Evaluation, context: IterationContext) => boolean
-  ): this {
+  /** Set custom termination check */
+  shouldTerminate(fn: (state: State, evaluation: Evaluation, context: IterationContext) => boolean): this {
     this.options.shouldTerminate = fn;
     return this;
   }
 
-  /**
-   * Set error handler
-   */
-  onError(
-    fn: (
-      error: Error,
-      state: State | undefined,
-      context: IterationContext
-    ) => Promise<Result>
-  ): this {
+  /** Set error handler */
+  onError(fn: (error: Error, state: State | undefined, context: IterationContext) => Promise<Result>): this {
     this.options.onError = fn;
     return this;
   }
 
-  /**
-   * Set maximum iterations
-   */
+  /** Set maximum iterations */
   maxIterations(value: number): this {
     this.config.maxIterations = value;
     return this;
   }
 
-  /**
-   * Set target score
-   */
+  /** Set target score */
   targetScore(value: number): this {
     this.config.targetScore = value;
     return this;
   }
 
-  /**
-   * Set early stop score
-   */
+  /** Set early stop score */
   earlyStopScore(value: number): this {
     this.config.earlyStopScore = value;
     return this;
   }
 
-  /**
-   * Set minimum iterations
-   */
+  /** Set minimum iterations */
   minIterations(value: number): this {
     this.config.minIterations = value;
     return this;
   }
 
-  /**
-   * Set timeout in milliseconds
-   */
+  /** Set timeout in milliseconds */
   timeout(ms: number): this {
     this.config.timeout = ms;
     return this;
   }
 
-  /**
-   * Enable verbose mode
-   */
+  /** Enable verbose mode */
   verbose(enabled = true): this {
     this.config.verbose = enabled;
     return this;
   }
 
-  /**
-   * Enable alwaysRunTransition
-   */
+  /** Enable alwaysRunTransition */
   alwaysRunTransition(enabled = true): this {
     this.config.alwaysRunTransition = enabled;
     return this;
   }
 
-  /**
-   * Enable skipMinIterations
-   */
+  /** Enable skipMinIterations */
   skipMinIterations(enabled = true): this {
     this.config.skipMinIterations = enabled;
     return this;
   }
 
-  /**
-   * Set custom logger
-   */
+  /** Set custom logger */
   logger(logger: {
     error: (message: string, error: unknown) => void;
     log?: (message: string, ...args: unknown[]) => void;
@@ -220,9 +165,7 @@ export class IterationBuilder<Input, State, ActionData, Result> {
     return this;
   }
 
-  /**
-   * Add event listener
-   */
+  /** Add event listener */
   on(listener: IterationEventListener<Input, State, ActionData, Result>): this {
     this.listeners.push(listener);
     return this;
@@ -230,7 +173,6 @@ export class IterationBuilder<Input, State, ActionData, Result> {
 
   /**
    * Use a preset configuration
-   * 
    * @param preset - Name of the preset to apply
    * @see {@link DEFAULT_PRESETS} for available presets and their values
    */
@@ -242,38 +184,20 @@ export class IterationBuilder<Input, State, ActionData, Result> {
     return this;
   }
 
-  /**
-   * Apply a custom preset configuration
-   * 
-   * @param customPreset - Custom configuration to apply as a preset
-   * @example
-   * ```typescript
-   * const myPreset: IterationConfig = {
-   *   maxIterations: 7,
-   *   targetScore: 85,
-   *   // ...
-   * };
-   * builder.customPreset(myPreset);
-   * ```
-   */
+  /** Apply a custom preset configuration */
   customPreset(customPreset: IterationConfig): this {
     Object.assign(this.config, customPreset);
     return this;
   }
 
-  /**
-   * Apply partial configuration
-   */
+  /** Apply partial configuration */
   configure(config: Partial<IterationConfig>): this {
     Object.assign(this.config, config);
     return this;
   }
 
-  /**
-   * Build the IterationProcessor
-   */
+  /** Build the IterationProcessor */
   build(): IterationProcessor<Input, State, ActionData, Result> {
-    // Validate all required options are set
     if (!this.options.initialize) {
       throw new Error('initialize function is required');
     }
@@ -295,7 +219,6 @@ export class IterationBuilder<Input, State, ActionData, Result> {
       this.config
     );
 
-    // Add event listeners
     for (const listener of this.listeners) {
       processor.on(listener);
     }
@@ -303,17 +226,13 @@ export class IterationBuilder<Input, State, ActionData, Result> {
     return processor;
   }
 
-  /**
-   * Build and run immediately
-   */
+  /** Build and run immediately */
   async run(input: Input) {
     return this.build().run(input);
   }
 }
 
-/**
- * Create a new iteration builder
- */
+/** Create a new iteration builder */
 export function iterationBuilder<Input, State, ActionData, Result>() {
   return new IterationBuilder<Input, State, ActionData, Result>();
 }

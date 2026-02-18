@@ -31,7 +31,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
   private listeners: IterationEventListener<Input, State, ActionData, Result>[] = [];
 
   constructor(
-    private options: IterationOptions<Input, State, ActionData, Result>,
+    private _options: IterationOptions<Input, State, ActionData, Result>,
     config: IterationConfig = {}
   ) {
     const maxIterations = config.maxIterations ?? 5;
@@ -102,7 +102,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
     this.log('Starting iteration loop', { maxIterations: this.config.maxIterations });
 
     try {
-      let currentState: State = await this.options.initialize(input);
+      let currentState: State = await this._options.initialize(input);
       state = currentState;
       this.log('Initialized state');
 
@@ -118,7 +118,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
           state: currentState,
           startTime,
           config: this.config,
-          options: this.options,
+          options: this._options,
           history,
           previousEvaluation: finalEvaluation,
           emit: (event) => this.emit(event),
@@ -136,7 +136,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
         }
       }
 
-      const result = await this.options.finalize(currentState, history);
+      const result = await this._options.finalize(currentState, history);
       const iterationResult = buildResult<Result, ActionData>({
         result,
         history,
@@ -160,14 +160,14 @@ export class IterationProcessor<Input, State, ActionData, Result> {
       this.emit({ type: 'error', error: err, iteration: history.length, state });
       this.log('Error occurred', { error: err.message });
 
-      if (this.options.onError) {
+      if (this._options.onError) {
         const context: IterationContext = {
           iteration: history.length,
           maxIterations: this.config.maxIterations,
           elapsedTime: Date.now() - startTime,
           previousEvaluation: finalEvaluation,
         };
-        const fallbackResult = await this.options.onError(err, state, context);
+        const fallbackResult = await this._options.onError(err, state, context);
         return buildErrorResult<Result, ActionData>({
           result: fallbackResult,
           history,
@@ -189,7 +189,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
     context: IterationContext,
     iteration: number
   ): { terminate: boolean; reason: IterationResult<Result, ActionData>['terminationReason'] } {
-    if (this.options.shouldTerminate?.(state, evaluation, context)) {
+    if (this._options.shouldTerminate?.(state, evaluation, context)) {
       return { terminate: true, reason: 'manual_stop' };
     }
     if (evaluation.score >= this.config.earlyStopScore) {
@@ -214,7 +214,7 @@ export class IterationProcessor<Input, State, ActionData, Result> {
 
   /** Create a new processor with updated config */
   withConfig(config: Partial<IterationConfig>): IterationProcessor<Input, State, ActionData, Result> {
-    return new IterationProcessor(this.options, { ...this.config, ...config });
+    return new IterationProcessor(this._options, { ...this.config, ...config });
   }
 
   /** Update configuration dynamically (returns this for chaining) */

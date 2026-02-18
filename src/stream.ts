@@ -11,9 +11,7 @@ import type {
   IterationOptions,
 } from './types.js';
 
-/**
- * Streaming iteration state for nagare
- */
+/** Streaming iteration state for nagare */
 export interface StreamingState<State, ActionData> {
   iteration: number;
   state: State;
@@ -24,141 +22,140 @@ export interface StreamingState<State, ActionData> {
   context: IterationContext;
 }
 
+/** Resolved streaming config values */
+interface ResolvedStreamConfig {
+  maxIterations: number;
+  minIterations: number;
+  targetScore: number;
+  skipMinIterations: boolean;
+  timeout: number | undefined;
+}
+
+/** Shared iteration context passed to helper methods */
+interface StreamLoopContext<State, ActionData> {
+  states: StreamingState<State, ActionData>[];
+  cfg: ResolvedStreamConfig;
+  startTime: number;
+  history: IterationHistory<ActionData>[];
+}
+
 /**
- * Stream adapter for IteratoP with nagare
- * Provides streaming iteration results compatible with nagare's Stream<T> interface
+ * Stream adapter for IteratoP with nagare.
+ * Provides streaming iteration results compatible with nagare's Stream<T> interface.
  */
 export class StreamingIteratoP<Input, State, ActionData, Result> {
   constructor(
-    private config: IterationOptions<Input, State, ActionData, Result>,
-    private options?: IterationConfig
-  ) {}
+    private _config: IterationOptions<Input, State, ActionData, Result>,
+    private _options?: IterationConfig
+  ) { /* no-op */ }
 
-  /**
-   * Execute iterations and return a nagare Stream of iteration states
-   * 
-   * Since nagare streams are synchronous at creation time, we need to collect
-   * all states first and then stream them
-   */
-  async executeStream(input: Input): Promise<Stream<StreamingState<State, ActionData>>> {
-    const states: StreamingState<State, ActionData>[] = [];
-    
-    // Initialize
-    const initialState = await this.config.initialize(input);
-    let currentState = initialState;
-    let iteration = 0;
-    let converged = false;
-    const history: IterationHistory<ActionData>[] = [];
-
-    const maxIterations = this.options?.maxIterations ?? 5;
-    const minIterations = this.options?.minIterations ?? 1;
-    const targetScore = this.options?.targetScore ?? 70;
-    const skipMinIterations = this.options?.skipMinIterations ?? false;
-    const startTime = Date.now();
-    const timeout = this.options?.timeout;
-
-    // Emit initial state
-    const initialContext: IterationContext = {
-      iteration: 0,
-      maxIterations,
-      elapsedTime: 0,
+  private resolveConfig(): ResolvedStreamConfig {
+    return {
+      maxIterations: this._options?.maxIterations ?? 5,
+      minIterations: this._options?.minIterations ?? 1,
+      targetScore: this._options?.targetScore ?? 70,
+      skipMinIterations: this._options?.skipMinIterations ?? false,
+      timeout: this._options?.timeout,
     };
+  }
 
-    states.push({
+  private extractInitialPhase(ctx: StreamLoopContext<State, ActionData>, currentState: State): void {
+    ctx.states.push({
       iteration: 0,
       state: currentState,
       converged: false,
-      context: initialContext,
+      context: { iteration: 0, maxIterations: ctx.cfg.maxIterations, elapsedTime: 0 },
     });
+  }
 
-    while (iteration < maxIterations && !converged) {
-      const iterationStartTime = Date.now();
-
-      // Check timeout BEFORE incrementing iteration
-      if (timeout && Date.now() - startTime > timeout) {
-        const context: IterationContext = {
-          iteration: iteration + 1,
-          maxIterations,
-          elapsedTime: Date.now() - startTime,
-          previousEvaluation: history[history.length - 1]?.evaluation,
-        };
-
-        states.push({
-          iteration: iteration + 1,
-          state: currentState,
-          converged: false,
-          timedOut: true,
-          context,
-        });
-        break;
-      }
-
-      iteration++;
-
-      const context: IterationContext = {
-        iteration,
-        maxIterations,
-        elapsedTime: Date.now() - startTime,
-        previousEvaluation: history[history.length - 1]?.evaluation,
-      };
-
-      // Act phase
-      const actionResult = await this.config.act(currentState, context);
-
-      // Evaluate phase
-      const evaluation = await this.config.evaluate(currentState, actionResult, context);
-
-      // Record history
-      history.push({
-        iteration,
-        actionResult,
-        evaluation,
-        timestamp: Date.now(),
-        duration: Date.now() - iterationStartTime,
-      });
-
-      // Check convergence
-      if (skipMinIterations && evaluation.score >= targetScore) {
-        converged = true;
-      } else if (evaluation.score >= targetScore && iteration >= minIterations) {
-        converged = true;
-      } else if (!evaluation.shouldContinue && iteration >= minIterations) {
-        converged = true;
-      }
-
-      // Transition phase
-      if (!converged && this.config.transition) {
-        currentState = await this.config.transition(currentState, actionResult, evaluation, context);
-      }
-
-      // Emit state after transition
-      states.push({
-        iteration,
-        state: currentState,
-        actionResult,
-        evaluation,
-        converged,
-        context,
-      });
-
-      // If just converged, break out of loop
-      if (converged) {
-        break;
-      }
+  private extractTimeoutCheck(
+    ctx: StreamLoopContext<State, ActionData>,
+    currentState: State,
+    iteration: number
+  ): boolean {
+    if (!ctx.cfg.timeout || Date.now() - ctx.startTime <= ctx.cfg.timeout) {
+      return false;
     }
+    ctx.states.push({
+      iteration: iteration + 1,
+      state: currentState,
+      converged: false,
+      timedOut: true,
+      context: {
+        iteration: iteration + 1,
+        maxIterations: ctx.cfg.maxIterations,
+        elapsedTime: Date.now() - ctx.startTime,
+        previousEvaluation: ctx.history[ctx.history.length - 1]?.evaluation,
+      },
+    });
+    return true;
+  }
 
-    // Finalize if configured
-    if (this.config.finalize) {
-      await this.config.finalize(currentState, history);
+  private async extractIterationPhase(
+    ctx: StreamLoopContext<State, ActionData>,
+    currentState: State,
+    iteration: number
+  ): Promise<{ state: State; converged: boolean }> {
+    const iterationStartTime = Date.now();
+    const context: IterationContext = {
+      iteration,
+      maxIterations: ctx.cfg.maxIterations,
+      elapsedTime: Date.now() - ctx.startTime,
+      previousEvaluation: ctx.history[ctx.history.length - 1]?.evaluation,
+    };
+    const actionResult = await this._config.act(currentState, context);
+    const evaluation = await this._config.evaluate(currentState, actionResult, context);
+    ctx.history.push({ iteration, actionResult, evaluation, timestamp: Date.now(), duration: Date.now() - iterationStartTime });
+
+    const converged = this.extractConvergenceCheck(evaluation, iteration, ctx.cfg);
+    let state = currentState;
+    if (!converged && this._config.transition) {
+      state = await this._config.transition(state, actionResult, evaluation, context);
     }
-    
-    // Return as a nagare stream
-    return fromArray(states);
+    ctx.states.push({ iteration, state, actionResult, evaluation, converged, context });
+    return { state, converged };
+  }
+
+  private extractConvergenceCheck(evaluation: Evaluation, iteration: number, cfg: ResolvedStreamConfig): boolean {
+    if (cfg.skipMinIterations && evaluation.score >= cfg.targetScore) return true;
+    if (evaluation.score >= cfg.targetScore && iteration >= cfg.minIterations) return true;
+    if (!evaluation.shouldContinue && iteration >= cfg.minIterations) return true;
+    return false;
   }
 
   /**
-   * Execute iterations and return a nagare Stream of evaluations only
+   * Execute iterations and return a nagare Stream of iteration states.
+   * Collects all states first then streams them (nagare streams are synchronous at creation).
    */
+  async executeStream(input: Input): Promise<Stream<StreamingState<State, ActionData>>> {
+    const ctx: StreamLoopContext<State, ActionData> = {
+      states: [],
+      cfg: this.resolveConfig(),
+      startTime: Date.now(),
+      history: [],
+    };
+
+    let currentState = await this._config.initialize(input);
+    this.extractInitialPhase(ctx, currentState);
+
+    let iteration = 0;
+    let converged = false;
+    while (iteration < ctx.cfg.maxIterations && !converged) {
+      if (this.extractTimeoutCheck(ctx, currentState, iteration)) break;
+      iteration++;
+      const result = await this.extractIterationPhase(ctx, currentState, iteration);
+      currentState = result.state;
+      converged = result.converged;
+      if (converged) break;
+    }
+
+    if (this._config.finalize) {
+      await this._config.finalize(currentState, ctx.history);
+    }
+    return fromArray(ctx.states);
+  }
+
+  /** Execute iterations and return a nagare Stream of evaluations only */
   async evaluationStream(input: Input): Promise<Stream<Evaluation>> {
     const stateStream = await this.executeStream(input);
     return stateStream
@@ -166,9 +163,7 @@ export class StreamingIteratoP<Input, State, ActionData, Result> {
       .filter((evaluation): evaluation is Evaluation => evaluation !== undefined) as Stream<Evaluation>;
   }
 
-  /**
-   * Execute iterations and return a nagare Stream of action results only
-   */
+  /** Execute iterations and return a nagare Stream of action results only */
   async actionStream(input: Input): Promise<Stream<ActionResult<ActionData>>> {
     const stateStream = await this.executeStream(input);
     return stateStream
@@ -176,18 +171,14 @@ export class StreamingIteratoP<Input, State, ActionData, Result> {
       .filter((actionResult): actionResult is ActionResult<ActionData> => actionResult !== undefined) as Stream<ActionResult<ActionData>>;
   }
 
-  /**
-   * Execute and return final result (non-streaming)
-   */
+  /** Execute and return final result (non-streaming) */
   async execute(input: Input): Promise<IterationResult<Result, ActionData>> {
-    const processor = createIterator(this.config, this.options);
+    const processor = createIterator(this._config, this._options);
     return processor.run(input);
   }
 }
 
-/**
- * Builder for StreamingIteratoP
- */
+/** Builder for StreamingIteratoP */
 export class StreamingIteratoPBuilder<Input, State, ActionData, Result = State> {
   private config: Partial<IterationOptions<Input, State, ActionData, Result>> = {};
   private options: IterationConfig = {};
@@ -241,12 +232,9 @@ export class StreamingIteratoPBuilder<Input, State, ActionData, Result = State> 
     if (!this.config.initialize || !this.config.act || !this.config.evaluate) {
       throw new Error('initialize, act, and evaluate functions are required');
     }
-
-    // Ensure transition is defined
     if (!this.config.transition) {
       this.config.transition = async (state) => state;
     }
-
     return new StreamingIteratoP(
       this.config as IterationOptions<Input, State, ActionData, Result>,
       this.options
@@ -254,9 +242,7 @@ export class StreamingIteratoPBuilder<Input, State, ActionData, Result = State> 
   }
 }
 
-/**
- * Create a streaming iteration processor
- */
+/** Create a streaming iteration processor */
 export function createStreamingIterator<Input, State, ActionData, Result = State>(
   config: IterationOptions<Input, State, ActionData, Result>,
   options?: IterationConfig

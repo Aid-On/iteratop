@@ -11,7 +11,6 @@ import type {
   IterationResult,
   IterationOptions,
   IterationEvent,
-  IterationEventListener,
   Evaluation,
   ResolvedConfig,
 } from './types.js';

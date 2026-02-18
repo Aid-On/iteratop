@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { StreamingIteratoP, StreamingIteratoPBuilder, createStreamingIterator } from './stream';
 import { createEvaluation, createActionResult } from './utils';
-import type { IterationContext } from './types';
 
 describe('StreamingIteratoP', () => {
   describe('executeStream', () => {
@@ -9,8 +8,8 @@ describe('StreamingIteratoP', () => {
       const processor = new StreamingIteratoP(
         {
           initialize: async (input: number) => ({ value: input }),
-          act: async (state) => createActionResult({ data: 'test' }),
-          evaluate: async (state, actionResult, context) => createEvaluation(state.value * 30, {
+          act: async (_state) => createActionResult({ data: 'test' }),
+          evaluate: async (state, _actionResult, _context) => createEvaluation(state.value * 30, {
             shouldContinue: state.value < 3,
             feedback: 'Continue',
           }),
@@ -20,16 +19,16 @@ describe('StreamingIteratoP', () => {
         { maxIterations: 5, targetScore: 90 }
       );
 
-      const states: any[] = [];
+      const states: unknown[] = [];
       const stream = await processor.executeStream(0);
-      
-      for await (const state of stream) {
-        states.push({ ...state });
+
+      for await (const _state of stream) {
+        states.push({ ..._state });
       }
 
       expect(states.length).toBeGreaterThan(0);
-      expect(states[states.length - 1].converged).toBe(true);
-      expect(states[states.length - 1].state.value).toBe(3);
+      expect((states[states.length - 1] as Record<string, unknown>).converged).toBe(true);
+      expect(((states[states.length - 1] as Record<string, unknown>).state as Record<string, unknown>).value).toBe(3);
     });
 
     it('should handle timeout in stream', async () => {
@@ -50,14 +49,14 @@ describe('StreamingIteratoP', () => {
         { maxIterations: 10, timeout: 150 }
       );
 
-      const states: any[] = [];
+      const states: unknown[] = [];
       const stream = await processor.executeStream(0);
-      
-      for await (const state of stream) {
-        states.push({ ...state });
+
+      for await (const _state of stream) {
+        states.push({ ..._state });
       }
 
-      const lastState = states[states.length - 1];
+      const lastState = states[states.length - 1] as Record<string, unknown>;
       expect(lastState.timedOut).toBe(true);
       expect(lastState.iteration).toBeLessThan(10);
     });
@@ -69,7 +68,7 @@ describe('StreamingIteratoP', () => {
         {
           initialize: async (input: number) => ({ value: input }),
           act: async () => createActionResult({ result: 'action' }),
-          evaluate: async (state, actionResult, context) => createEvaluation(context.iteration * 40, {
+          evaluate: async (_state, _actionResult, context) => createEvaluation(context.iteration * 40, {
             shouldContinue: context.iteration < 2,
             feedback: `Iteration ${context.iteration}`,
           }),
@@ -79,17 +78,16 @@ describe('StreamingIteratoP', () => {
         { maxIterations: 3 }
       );
 
-      const evaluations: any[] = [];
+      const evaluations: unknown[] = [];
       const stream = await processor.evaluationStream(0);
-      
+
       for await (const evaluation of stream) {
         evaluations.push(evaluation);
       }
 
-      // We get 2 evaluations (iterations 1 and 2)
       expect(evaluations.length).toBe(2);
-      expect(evaluations[0].score).toBe(40);
-      expect(evaluations[1].score).toBe(80);
+      expect((evaluations[0] as Record<string, unknown>).score).toBe(40);
+      expect((evaluations[1] as Record<string, unknown>).score).toBe(80);
     });
   });
 
@@ -98,10 +96,10 @@ describe('StreamingIteratoP', () => {
       const processor = new StreamingIteratoP(
         {
           initialize: async (input: number) => ({ value: input }),
-          act: async (state, context) => createActionResult({ 
-            result: `action-${context.iteration}` 
+          act: async (_state, _context) => createActionResult({
+            result: `action-${_context.iteration}`
           }),
-          evaluate: async (state, actionResult, context) => createEvaluation(context.iteration * 50, {
+          evaluate: async (_state, _actionResult, context) => createEvaluation(context.iteration * 50, {
             shouldContinue: context.iteration < 2,
             feedback: 'Continue',
           }),
@@ -111,24 +109,23 @@ describe('StreamingIteratoP', () => {
         { maxIterations: 3 }
       );
 
-      const actions: any[] = [];
+      const actions: unknown[] = [];
       const stream = await processor.actionStream(0);
-      
+
       for await (const action of stream) {
         actions.push(action);
       }
 
-      // We get 2 actions (iterations 1 and 2)
-      expect(actions.length).toBe(2);  
-      expect(actions[0].data.result).toBe('action-1');
-      expect(actions[1].data.result).toBe('action-2');
+      expect(actions.length).toBe(2);
+      expect(((actions[0] as Record<string, unknown>).data as Record<string, unknown>).result).toBe('action-1');
+      expect(((actions[1] as Record<string, unknown>).data as Record<string, unknown>).result).toBe('action-2');
     });
   });
 
   describe('StreamingIteratoPBuilder', () => {
     it('should build a streaming processor with builder pattern', async () => {
       const builder = new StreamingIteratoPBuilder<number, { value: number }, { result: string }>();
-      
+
       const processor = builder
         .withInitialize(async (input) => ({ value: input }))
         .withAct(async () => createActionResult({ result: 'test' }))
@@ -141,26 +138,26 @@ describe('StreamingIteratoP', () => {
         .withTargetScore(100)
         .build();
 
-      const states: any[] = [];
+      const states: unknown[] = [];
       const stream = await processor.executeStream(0);
-      
-      for await (const state of stream) {
-        states.push({ ...state });
+
+      for await (const _state of stream) {
+        states.push({ ..._state });
       }
 
-      expect(states[states.length - 1].converged).toBe(true);
+      expect((states[states.length - 1] as Record<string, unknown>).converged).toBe(true);
     });
 
     it('should throw error when required functions are missing', () => {
       const builder = new StreamingIteratoPBuilder();
-      
+
       expect(() => builder.build()).toThrowError(
         'initialize, act, and evaluate functions are required'
       );
     });
 
     it('should set all configuration options', () => {
-      const builder = new StreamingIteratoPBuilder<number, { value: number }, any>();
+      const builder = new StreamingIteratoPBuilder<number, { value: number }, unknown>();
 
       const processor = builder
         .withInitialize(async (input) => ({ value: input }))
@@ -171,8 +168,8 @@ describe('StreamingIteratoP', () => {
         }))
         .withTransition(async (state) => state)
         .withFinalize(async (state) => ({ final: state }))
-        .withOptions({ 
-          verbose: true, 
+        .withOptions({
+          verbose: true,
           minIterations: 2,
           skipMinIterations: true,
         })
@@ -199,15 +196,15 @@ describe('StreamingIteratoP', () => {
         { maxIterations: 3 }
       );
 
-      const states: any[] = [];
+      const states: unknown[] = [];
       const stream = await processor.executeStream(0);
-      
-      for await (const state of stream) {
-        states.push({ ...state });
+
+      for await (const _state of stream) {
+        states.push({ ..._state });
       }
 
       expect(states.length).toBeGreaterThan(0);
-      expect(states[states.length - 1].converged).toBe(true);
+      expect((states[states.length - 1] as Record<string, unknown>).converged).toBe(true);
     });
 
     it('should support non-streaming execute method', async () => {

@@ -95,7 +95,7 @@ describe('IterationBuilder', () => {
 
   describe('event listeners', () => {
     it('should attach event listeners', async () => {
-      const events: any[] = [];
+      const events: unknown[] = [];
 
       await iterationBuilder<number, { value: number }, number, number>()
         .initialize(async (input) => ({ value: input }))
