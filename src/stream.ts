@@ -135,7 +135,7 @@ export class StreamingIteratoP<Input, State, ActionData, Result> {
       history: [],
     };
 
-    let currentState = await this._config.initialize(input);
+    let currentState: State = await this._config.initialize(input);
     this.extractInitialPhase(ctx, currentState);
 
     let iteration = 0;
