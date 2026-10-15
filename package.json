@@ -54,11 +54,11 @@
   },
   "homepage": "https://github.com/Aid-On/iteratop#readme",
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^4.1.11",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -68,5 +68,11 @@
   },
   "dependencies": {
     "@aid-on/nagare": "^0.2.5"
+  },
+  "overrides": {
+    "tinypool@1.1.1": "^2.1.2",
+    "vite@5.4.21": "^6.4.3",
+    "@vitest/mocker@2.1.9": "^4.1.11",
+    "esbuild@0.21.5": "~0.25.0"
   }
 }
