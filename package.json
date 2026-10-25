@@ -54,11 +54,11 @@
   },
   "homepage": "https://github.com/Aid-On/iteratop#readme",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=16.0.0"
